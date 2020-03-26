@@ -2,49 +2,46 @@ package serverRoom
 
 import (
 	"github.com/fsnotify/fsnotify"
-	goconfig "gogs.163.com/feiyu/goutil/config"
+	"strings"
 	"sync"
+
+	//goconfig "gogs.163.com/feiyu/goutil/config"
+	"github.com/spf13/viper"
 )
+
 //配置文件操作
 
-
-type singleton goconfig.Viperable
-
-
-var v singleton
+var v *viper.Viper
 var once sync.Once
 
-
-func GetConfigInstance() singleton {
+func GetConfigInstance() *viper.Viper {
 	once.Do(load)
 	return v
 }
 
+//
 //配置文件初始化
 func load() {
+	v = viper.New()
 
-	v = goconfig.New()
-	v.SetConfig(Arg.configfile,"json","/etc","/root",".")
-	err := v.ReadConfig()
+	v.SetConfigName(strings.Trim(Arg.configFile, ".json")) // name of config file (without extension)
+	v.SetConfigType("json")                                // REQUIRED if the config file does not have the extension in the name
+	v.AddConfigPath(".")
+	err := v.ReadInConfig()
 	if err != nil {
 		panic(err)
 	}
 
-	v.Getconfig()
-
 }
-
-
 
 type ConfResponse struct {
 	Action string
-	Key   string
-	Value interface{}
-	Error error
+	Key    string
+	Value  interface{}
+	Error  error
 }
 
-
-func ConfWatch(stop chan struct{})  <-chan *ConfResponse{
+func ConfWatch(stop chan struct{}) <-chan *ConfResponse {
 	respChan := make(chan *ConfResponse, 10)
 
 	go func() {
@@ -55,7 +52,7 @@ func ConfWatch(stop chan struct{})  <-chan *ConfResponse{
 			panic(err)
 		}
 
-		watcher.Add(Arg.configfile)
+		watcher.Add(Arg.configFile)
 
 		go func() {
 			<-stop
@@ -74,8 +71,8 @@ func ConfWatch(stop chan struct{})  <-chan *ConfResponse{
 					event.Op&fsnotify.Rename == fsnotify.Rename ||
 					event.Op&fsnotify.Write == fsnotify.Write ||
 					event.Op&fsnotify.Create == fsnotify.Create {
-					watcher.Remove(Arg.configfile)
-					watcher.Add(Arg.configfile)
+					watcher.Remove(Arg.configFile)
+					watcher.Add(Arg.configFile)
 
 					//需要读取配置文件
 					//通过chan通知
@@ -90,7 +87,5 @@ func ConfWatch(stop chan struct{})  <-chan *ConfResponse{
 		}
 	}()
 
-
 	return respChan
 }
-
